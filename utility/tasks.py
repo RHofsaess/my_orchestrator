@@ -1,3 +1,4 @@
+from shutil import copyfile
 from pathlib import Path
 
 from utility.lock import Lock
@@ -9,7 +10,7 @@ except:
 
 
 class Task:
-    def __init__(self, name, run_fn, dependencies=None):
+    def __init__(self, config, name, run_fn, dependencies=None):
         """
         Initialize a task.
 
@@ -19,6 +20,7 @@ class Task:
             dependencies (list[Task]): List of other tasks that must be completed before this one.
         """
         self.name = name
+        self.config = config
         if not callable(run_fn):
             raise ValueError('The "run_fn" must be a callable function.')
         else:
@@ -26,6 +28,27 @@ class Task:
         self.dependencies = dependencies if dependencies else []  # Here, all below and before should be listed
         self.status = None
         self.completed = False
+
+    def __str__(self):
+        return f'Task(name={self.name}, status={self.status}, completed={self.completed})'
+
+    def copy_config(self):
+        # copy from parent to run_X and cfg_dir
+        parent_dir = Path(self.name).resolve().parent
+        logger.debug(f'[Task:copy_config] Copying config from {parent_dir} to {self.name} and {self.config["HEPscore"]["cfg_dir"]}.')
+        src = parent_dir / 'config.yaml'
+        dst_run = Path(self.name)/'used_cfg.yaml'
+        dst_hepscore = Path(self.config["HEPscore"]["cfg_dir"]) / 'hepscore-gpu.yaml'
+        try:
+            copyfile(src, dst_run)
+            logger.debug(f'[install] Copied config: {src} -> {dst_run}.')
+        except Exception as e:
+            logger.error(f'[install] Failed to copy config from {src} to {dst_run}: {e}')
+        try:
+            copyfile(src, dst_hepscore)
+            logger.debug(f'[install] Copied config: {src} -> {dst_hepscore}.')
+        except Exception as e:
+            logger.error(f'[install] Failed to copy config from {src} to {dst_hepscore}: {e}')
 
     def check_status(self):
         # If in task directory SUCCESS or FAILED file exists, set status accordingly and completed=true
@@ -54,8 +77,7 @@ class Task:
             # TODO: copy the config!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             # copy local config
-
-            # copy to hepscore/etc as hepscore-gpu.yaml
+            self.copy_config()
 
             # Run
             exit_code = self.run_fn()  # Execute the task's run function

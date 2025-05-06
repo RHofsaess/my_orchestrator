@@ -3,40 +3,63 @@ import shutil
 import subprocess
 import os
 
+from shutil import copyfile
 from pathlib import Path
 
 from utility.init_fw import init_run_config
 from utility.logger import logger
 from utility.tasks import Task, TaskRunner, create_tasks
-from utility.utils import verify_installation, get_run_command
+from utility.utils import verify_installation, get_run_command, run_command, clone_repo
 
 
-def install(cfg, depth: int = 1) -> None:
-    """Clone hepscore-benchmark-suite and install."""
-    repo_url='https://gitlab.cern.ch/hep-benchmarks/hep-benchmark-suite.git'
+def install(config) -> None:
+    """
+    Install HEPscore benchmark suite and configure it based on the provided configuration.
 
-    clone_cmd = ['git', 'clone', '--branch', cfg["General"]["suite_version"]]
-    if depth is not None:
-        clone_cmd += ["--depth", str(depth)]
-    clone_cmd += [repo_url]
-    logger.debug(f'[install] Cloning {repo_url}@{cfg["General"]["suite_version"]} with command: {clone_cmd}')
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary containing installation settings.
+        Must include 'General' and 'HEPscore' sections with required parameters.
 
-    env = os.environ.copy()
-    env["GIT_TERMINAL_PROMPT"] = "0"    # never prompt on TTY
-    env["GIT_ASKPASS"] = "echo"         # a no-op askpass program
+    Returns
+    -------
+    None
 
-    try:
-        subprocess.run(clone_cmd, check=True, env=env)
-        logger.info(f'[install] Cloned {repo_url}@{cfg["General"]["suite_version"]}.')
-    except subprocess.CalledProcessError as e:
-        logger.error(f'[install] Error during git clone: {e}')
-        exit(e.returncode)
+    Notes
+    -----
+    This function performs the following steps:
+    1. Clones the HEP benchmark repository if not present
+    2. Optionally replaces the run script with a template
+    3. Installs HEPscore with site-specific configuration
+
+    If the installation fails, the function will exit with an error code.
+
+    The config dictionary must contain:
+    - config["General"]["replace_script"] : bool, optional
+        Whether to replace the run script with a template
+    - config["HEPscore"]["site"] : str
+        Site configuration name for HEPscore installation
+    """
+    if not Path('./hep-benchmark-suite').is_dir():
+        clone_repo(config=config)
+
+    # Replace the run_HEPscore.sh script with a template, if configured
+    if config["General"].get('replace_script', False):
+        src = Path('./config/run_HEPscore.template')
+        dst = Path('./hep-benchmark-suite/examples/hepscore/run_HEPscore.sh')
+        try:
+            copyfile(src, dst)
+            logger.info(f'[install] Replaced run_HEPscore.sh with template from {src}.')
+        except Exception as e:
+            logger.error(f'[install] Failed to copy run_HEPscore.template: {e}')
+            raise
 
     # Install hepscore
     install_cmd = [
-        "./hep-benchmark-suite/examples/hepscore/run_HEPscore.sh",
-        "-s", cfg["HEPscore"]["site"],
-        "-i"
+        './hep-benchmark-suite/examples/hepscore/run_HEPscore.sh',
+        '-s', config["HEPscore"]["site"],
+        '-i'
     ]
     logger.info(f'[install] Installing hepscore.')
     try:
@@ -45,6 +68,7 @@ def install(cfg, depth: int = 1) -> None:
     except subprocess.CalledProcessError as e:
         logger.error(f'[install] Error during hepscore installation: {e}')
         exit(e.returncode)
+
 
 def delete(task) -> None:
     """Delete a certain task. Can also be used to start from scratch, if 'runs' is selected."""
@@ -58,13 +82,15 @@ def delete(task) -> None:
     else:
         logger.error(f'[delete] {task} is not a valid task.')
 
+
 def reset(task) -> None:
     """Reset the benchmark progress. Can be used to start from scratch, if 'runs' is selected."""
+
     def clean_dir(task_dir):
         for item in task_dir.iterdir():
             if item.is_file():
-                # Delete log and status files
-                if item.suffix == '.yaml':
+                # Delete log and status files, keep configs
+                if str(item).split('/')[-1] == 'config.yaml':
                     logger.info(f'[reset] Preserving file: {item}')
                 else:
                     logger.info(f'[reset] Deleting file: {item}')
@@ -79,7 +105,7 @@ def reset(task) -> None:
         if inp.lower() == 'y':
             logger.info('[reset] Benchmark runs will be reset.')
             # Remove 'runs' directory
-            runs_dir = Path('../runs')
+            runs_dir = Path('./runs')
             logger.info(f'[reset] Resetting {runs_dir}.')
             clean_dir(runs_dir)
             logger.info('[reset] Reset complete.')
@@ -145,20 +171,23 @@ def push(config):
     pass
 
 
-def run(config, task: str = None,) -> None:
-    # 'run_fn' is mandatory; raise an error if not provided
-
+def run(config, task: str = None, ) -> None:
     # Check that no run is ongoing # TODO HOW TO CHECK IF RUNNING?
     # If a task is specified to run, create this one task and run it without the task runner
     if task:
         # If a task is specified, create and run it
-        Task(name=task, run_fn=run_fn)
+        t = Task(config=config, name=task, run_fn=lambda: run_command(get_run_command(config))
+        )
+        print("#######################", t)
+        t.run()
+        exit(1)
     else:
         # No task specified; create tasks for entire 'runs' directory
-        #create_tasks('./runs')
+        # create_tasks('./runs')
         logger.info('[run] Created tasks and start full run.')
         # Start run
         # TODO
+
 
 def rerun(task: str = '') -> None:
     """Rerun the specified task."""
@@ -197,7 +226,7 @@ def cli():
         '--run',
         nargs='?',  # optional
         default='',
-        const='',  #TODO check if logic works
+        const='',  # TODO check if logic works
         help='Run benchmarks sequentially. If a task is specified, only that task will be run.',
     )
     parser.add_argument(
@@ -223,28 +252,35 @@ def cli():
         logger.error('Failed to initialize config. Exiting.')
         exit(1)
 
-    # Verify installation and set hepscore config dir
-    script_dir, cfg_dir = verify_installation()
-    if cfg_dir is None:
-        logger.error('Failed to verify installation. Try --install. Exiting.')
-        exit(1)
-
+    # Install
     if args.install:
         install(cfg)
-    elif args.print_status:
+        logger.info('[install] Installed successfully. Exiting...')
+        exit(0)  # Exit after installation
+
+    # Verify installation and add directories to cfg
+    script_dir, cfg_dir = verify_installation()
+    cfg["HEPscore"]["script_dir"] = script_dir
+    cfg["HEPscore"]["script"] = script_dir + '/run_HEPscore.sh'
+    cfg["HEPscore"]["cfg_dir"] = cfg_dir
+    cfg["HEPscore"]["cfg"] = cfg_dir + '/hepscore-gpu.yaml'
+    logger.debug(f'[cli] Config: {cfg._sections}')
+
+    if args.print_status:
         print_status()
     elif args.reset:
         reset(args.reset)
     elif args.delete:
         delete(args.delete)
     elif args.run:
-        run(run_fn=get_run_command('runs/TEST_threads-4_copies-1_device-cuda_n-objects-1000/run_0/', config=cfg), task=args.run)
+        run(config=cfg, task=args.run)
         pass
         # TODO
     else:
         logger.error('Nothing specified. Use --help for more information. Exiting.')
 
+
 if __name__ == "__main__":
     cli()
 
-# TODO: copy used config to the run dir on run()
+# TODO: delete function should cleanup everything
