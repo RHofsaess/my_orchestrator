@@ -1,0 +1,24 @@
+hepscore:
+  benchmarks:
+    <benchmark>:
+      results_file: <benchmark>_summary.json
+      gpu: <gpu>
+      ref_scores:
+        <benchmark>: 1
+      version: <version>
+      args:
+        threads: <treads>
+        copies: <copies>
+        extra-args: <xargs>
+  settings:
+    name: HEPscore_GPU
+    reference_machine: 'Unknown'
+    registry:
+      - oras://gitlab-registry.cern.ch/hep-benchmarks/hep-workloads-sif
+      - docker://gitlab-registry.cern.ch/hep-benchmarks/hep-workloads
+      - dir:///cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/hep-benchmarks/hep-workloads
+    addarch: true
+    scaling: 1
+    repetitions: 1
+    method: geometric_mean
+    container_exec: singularity

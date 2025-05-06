@@ -1,0 +1,160 @@
+from pathlib import Path
+
+from utility.lock import Lock
+
+try:
+    from utility.logger import logger
+except:
+    print('++Using local logger.++')
+
+
+class Task:
+    def __init__(self, name, run_fn, dependencies=None):
+        """
+        Initialize a task.
+
+        Args:
+            name (str): Name of the task: full path.
+            run_fn (callable): Function to execute when the task is run. The function has to return an exit code.
+            dependencies (list[Task]): List of other tasks that must be completed before this one.
+        """
+        self.name = name
+        if not callable(run_fn):
+            raise ValueError('The "run_fn" must be a callable function.')
+        else:
+            self.run_fn = run_fn
+        self.dependencies = dependencies if dependencies else []  # Here, all below and before should be listed
+        self.status = None
+        self.completed = False
+
+    def check_status(self):
+        # If in task directory SUCCESS or FAILED file exists, set status accordingly and completed=true
+        logger.debug(f'[Task:check_status] Check status of >>{self.name}<<.')
+        if Path(self.name, 'SUCCESS').exists() or Path(self.name, 'FAILED').exists():
+            self.completed = True
+            if Path(self.name, 'SUCCESS').exists():
+                self.status = 'SUCCESS'
+            else:
+                self.status = 'FAILED'
+
+    def run(self):
+        """
+        Run the task, ensuring it hasn't already been completed.
+        After finishing, mark it as completed by creating SUCCESS or FAILED file in the task's directory.
+        """
+        if self.completed:
+            if self.status == 'FAILED':
+                logger.info(f'[Task:run] Task >>{self.name}<< already completed with status FAILED. Use --rerun to retry.')
+            else:
+                logger.info(f'[Task:run] Task >>{self.name}<< already completed successfully. Skipping.')
+            return
+
+        logger.info(f'[Task:run] Starting task >>{self.name}<<...')
+        try:
+            # TODO: copy the config!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+            # copy local config
+
+            # copy to hepscore/etc as hepscore-gpu.yaml
+
+            # Run
+            exit_code = self.run_fn()  # Execute the task's run function
+        except Exception as e:
+            logger.error(f'Task >>{self.name}<< failed with exception: {e}. Exiting')
+            exit(1)  # TODO: Check if necessary!
+        if exit_code != 0:
+            logger.error(f'[Task:run] Task >>{self.name}<< failed.')
+            # Create file in run directory
+            Path(self.name, 'FAILED').touch()
+        else:
+            logger.info(f'[Task:run] Task >>{self.name}<< ran successfully.')
+            self.completed = True
+            self.status = 'SUCCESS'
+            # Create file in run directory
+            Path(self.name, 'SUCCESS').touch()
+
+
+class TaskRunner:
+    def __init__(self):
+        self.tasks = []
+        self.running_task = None
+
+    def add_task(self, task):
+        self.tasks.append(task)
+
+    def run(self):
+        if not Lock.acquire():
+            logger.error(f'[TaskRunner] Another instance is already running. Exiting.')
+            return
+
+        try:
+            for task in self.tasks:
+                for dependency in task.dependencies:
+                    if not dependency.completed:
+                        print(f"Waiting for dependency `{dependency.name}` to complete...")
+                        dependency.run()
+
+                self.running_task = task
+                task.run()
+                self.running_task = None
+        finally:
+            Lock.release()
+
+
+def create_tasks(base_directory: str):
+    """
+    Creates tasks dynamically from the given directory structure using pathlib.
+
+    Args:
+        base_directory (str): The base directory to scan for task creation.
+
+    Returns:
+        list[Task]: A list of dynamically created Task objects.
+    """
+    # To store tasks by directory (for dependency resolution)
+    tasks = {}
+
+    # Convert base_directory to a Path object
+    base_dir = Path(base_directory)
+
+    # Walk through directories
+    # TODO: only bottom directories should be tasks (run_0, run_1, etc)
+    for dir_path in base_dir.rglob("*"):
+        if dir_path.is_dir():
+            task_name = dir_path
+
+            # Define what the task will do (this can be customized as needed)
+            def run_fn(working_dir=dir_path):
+                # Copy config file to cfg_dir
+                # TODO
+                print(f"Processing directory: {working_dir}")
+                for file_path in working_dir.iterdir():
+                    if file_path.is_file():
+                        print(f"Handling file: {file_path}")
+
+            # Identify dependencies (a directory's dependencies could be its parent directory)
+            parent_dir = dir_path.parent
+            dependencies = []
+            if str(parent_dir) in tasks:  # Link to the parent's task
+                dependencies.append(tasks[str(parent_dir)])
+
+            # Create the task and add it to the dictionary
+            tasks[str(dir_path)] = Task(name=task_name, run_fn=run_fn, dependencies=dependencies)
+
+    return list(tasks.values())  # Return all tasks as a list
+
+
+
+def setup_runner(tasks):
+    runner = TaskRunner(tasks)
+    return runner
+
+#     for task in tasks:
+#         runner.add_task(task)
+
+
+
+if __name__ == "__main__":
+    from logger import logger
+    config = {'General': {'workload': 'TEST', 'iterations': '3', 'suite_version': 'BMK-1642'}, 'HEPscore': {'site': 'test', 'results_file': 'REPLACE_summary.json', 'gpu': 'true', 'wl_version': 'ci_v0.2', 'plugins': 'f,l,m,s,p,g,u,v', 'others': ''}, 'Scan': {'threads': '4', 'copies': '1,2'}, 'ExtraArgs': {'device': 'cuda', 'n-objects': '1000,5000,10000'}}
+    print(create_tasks('../runs'))

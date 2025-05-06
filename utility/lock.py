@@ -1,0 +1,27 @@
+import os
+
+from utility.logger import logger
+
+LOCK_FILE = "/tmp/task_runner.lock"
+
+
+class Lock:
+    @staticmethod
+    def acquire():
+        """
+        Acquire a global lock. Returns True if successful, False if lock exists.
+        """
+        if os.path.exists(LOCK_FILE):
+            return False
+
+        with open(LOCK_FILE, 'w') as lock:
+            lock.write("Locked")  # Optionally store process info
+        return True
+
+    @staticmethod
+    def release():
+        """
+        Release the global lock by removing the lock file.
+        """
+        if os.path.exists(LOCK_FILE):
+            os.remove(LOCK_FILE)
