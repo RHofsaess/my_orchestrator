@@ -241,7 +241,7 @@ global:
 
 hepscore:
   version: $HEPSCORE_VERSION
-  config: builtin://hepscore-gpu
+  config: builtin://hepscore-run
   # list of configurations valid only for 
   # hepscore v2.0 (here as documentation)
   #config:  builtin://hepscore-default                                                                                                                                                                                                              

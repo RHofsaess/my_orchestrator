@@ -117,7 +117,7 @@ def reset(task) -> None:
             logger.warning(f'[reset] ++WARNING++ {task} progress will be deleted.')
             inp = input('Are you sure you want to proceed? [y/N]')
             if inp.lower() == 'y':
-                logger.info(f'[reset] {task} will be reset.')
+                logger.info(f'[reset] Resetting {task}.')
                 task_dir = Path(task)
                 # Iterate through the directory and apply the filter
                 clean_dir(task_dir)
@@ -178,9 +178,7 @@ def run(config, task: str = None, ) -> None:
         # If a task is specified, create and run it
         t = Task(config=config, name=task, run_fn=lambda: run_command(get_run_command(config))
         )
-        print("#######################", t)
         t.run()
-        exit(1)
     else:
         # No task specified; create tasks for entire 'runs' directory
         # create_tasks('./runs')
@@ -263,7 +261,7 @@ def cli():
     cfg["HEPscore"]["script_dir"] = script_dir
     cfg["HEPscore"]["script"] = script_dir + '/run_HEPscore.sh'
     cfg["HEPscore"]["cfg_dir"] = cfg_dir
-    cfg["HEPscore"]["cfg"] = cfg_dir + '/hepscore-gpu.yaml'
+    cfg["HEPscore"]["cfg"] = cfg_dir + '/hepscore-run.yaml'
     logger.debug(f'[cli] Config: {cfg._sections}')
 
     if args.print_status:

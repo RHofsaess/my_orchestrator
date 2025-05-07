@@ -66,7 +66,13 @@ def get_run_command(config) -> list:
     ]
 
 
-def run_command(command: list) -> int:
+def run_command_direct(_):
+    subprocess.run('/home/rhcern/REPOS/my_orchestrator/hep-benchmark-suite/examples/hepscore/run_HEPscore.sh -s test -r -b  f,l,m,s,p,g,u,v; ', shell=True)
+    subprocess.run('echo $?',shell=True)
+    print()
+    exit(1)
+
+def run_command1(command: list) -> int:
     """Function to run a given command as subprocess. Returns the exit code"""
     logger.debug(f'[run_command] Running command: {command}')
     try:
@@ -76,6 +82,42 @@ def run_command(command: list) -> int:
     except subprocess.CalledProcessError as e:
         logger.error(f'[run_command] Command failed with exit code {e.returncode}.')
         return e.returncode
+
+def run_command(command: list) -> int:
+    """Run a given command as a subprocess and return its exit code."""
+    logger.debug(f'[run_command] Running command: {" ".join(command)}')
+    try:
+        # Run command and capture output
+        result = subprocess.run(
+            command,
+            check=True,              # Raise an error if the command fails
+            capture_output=True,     # Capture stdout and stderr
+            text=True                # Decode output to strings (Python 3.6+)
+        )
+        exit_code = result.returncode
+        logger.debug(f'[run_command] Command completed with exit code {exit_code}.')
+        logger.debug(f'[run_command] stdout: {result.stdout}')
+        logger.debug(f'[run_command] stderr: {result.stderr}')
+
+        # Since the suite also may return 0 if the benchmarks failed but the suite itself was successfully running,
+        # this has to be digested manually
+        combined_output = result.stdout + result.stderr
+        if "Suite failed." in combined_output:
+            logger.error(f'[run_command] Suite failed.')
+            return 1
+
+
+        return result.returncode
+    except subprocess.CalledProcessError as e:
+        # Log detailed information on failure
+        logger.error(f'[run_command] Command failed with exit code {e.returncode}.')
+        logger.debug(f'[run_command] stdout: {e.stdout}')
+        logger.debug(f'[run_command] stderr: {e.stderr}')
+        return e.returncode
+    except Exception as e:
+        # Handle unexpected errors
+        logger.error(f'[run_command] Unexpected error: {e}')
+        return -1
 
 
 def verify_installation() -> set[str, str] or None:
