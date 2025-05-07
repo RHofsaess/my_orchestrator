@@ -63,6 +63,7 @@ def init_run_config(ini_path: str, base_out_dir: str = 'runs') -> dict:
     iterations = cfg.getint('General', 'iterations', fallback=1)
 
     # HEPscore
+    repetitions = cfg.getint('General', 'repetitions', fallback=1)
     raw_rs = cfg["HEPscore"]["results_file"]
     results_file = raw_rs.replace('REPLACE', workload)
     gpu = cfg["HEPscore"].getboolean('gpu')
@@ -114,7 +115,7 @@ def init_run_config(ini_path: str, base_out_dir: str = 'runs') -> dict:
                             'args': {**scan_args, 'extra-args': extra_args_str}
                         }
                     },
-                    'settings': {**DEFAULT_SETTINGS, 'repetitions': iterations}
+                    'settings': {**DEFAULT_SETTINGS, 'repetitions': repetitions}
                 }
             }
 
