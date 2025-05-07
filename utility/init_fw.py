@@ -65,7 +65,7 @@ def init_run_config(ini_path: str, base_out_dir: str = 'runs') -> dict:
     # HEPscore
     repetitions = cfg.getint('General', 'repetitions', fallback=1)
     raw_rs = cfg["HEPscore"]["results_file"]
-    results_file = raw_rs.replace('REPLACE', workload)
+    results_file = raw_rs.replace('<workload>', workload)
     gpu = cfg["HEPscore"].getboolean('gpu')
     wl_version = cfg["HEPscore"]["wl_version"]
 
