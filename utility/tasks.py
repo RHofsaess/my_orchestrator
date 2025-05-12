@@ -2,6 +2,7 @@ from shutil import copyfile
 from pathlib import Path
 
 from utility.lock import Lock
+from utility.utils import get_run_command, run_command
 
 try:
     from utility.logger import logger
@@ -10,7 +11,7 @@ except:
 
 
 class Task:
-    def __init__(self, config, name, run_fn, dependencies=None):
+    def __init__(self, config, name, run_fn, dependencies=None, is_parent=False):
         """
         Initialize a task.
 
@@ -24,11 +25,14 @@ class Task:
             self.name = name
         else:
             raise ValueError(f'The "name" parameter must be a valid task path in "runs/". Received: {name}')
+
         if not callable(run_fn):
             raise ValueError('The "run_fn" must be a callable function.')
         else:
             self.run_fn = run_fn
+
         self.config = config
+        self.is_parent=is_parent
         self.dependencies = dependencies if dependencies else []  # Here, all below and before should be listed
         self.exit_code = None
         self.status = None
@@ -84,6 +88,7 @@ class Task:
 
     def run(self):
         """
+        Basic function to run a task.
         Run the task, ensuring it hasn't already been completed.
         After finishing, mark it as completed by creating SUCCESS or FAILED file in the task's directory.
         """
@@ -120,12 +125,61 @@ class Task:
 
 
 class TaskRunner:
-    def __init__(self):
+    def __init__(self, config, tasks_directory='./runs'):
+        self.tasks_dir = tasks_directory  # Hardcoded for now
+        self.config = config
         self.tasks = []
         self.running_task = None
 
-    def add_task(self, task):
-        self.tasks.append(task)
+        # Create the tasks dynamically from the task directory structure
+        self.create_tasks()
+
+    def create_tasks(self) -> None:
+        """
+        Creates tasks dynamically from the given directory structure using pathlib.
+
+        Returns:
+            None
+        """
+        if not Path(self.tasks_dir).exists():
+            raise ValueError(f"Tasks directory {self.tasks_dir} does not exist.")
+
+        # Walk through directories
+        for task_path in Path(self.tasks_dir).rglob("*"):
+            # If subdirs exist, create parent task
+            if task_path.is_dir():  # Ensure task_path is a directory
+                if any(sub_task.is_dir() for sub_task in task_path.iterdir()):
+                    logger.debug(f'[TaskRunner:create_tasks] Creating parent task for {task_path}')
+                    task = Task(
+                        config=self.config,
+                        name=str(task_path),
+                        run_fn=lambda: None,
+                        is_parent=True,
+                    )
+                else:
+                    logger.debug(f'[TaskRunner:create_tasks] Creating task for {task_path}')
+                    task = Task(
+                        config=self.config,
+                        name=str(task_path),
+                        run_fn=lambda: run_command(get_run_command(self.config)),
+                    )
+                logger.debug(f'Appending: {task}')
+                self.tasks.append(task)
+
+        # Set dependencies
+        logger.info(f'[TaskRunner:create_tasks] Creating dependencies...')
+        for task in self.tasks:
+            print(task.is_parent)
+            if task.is_parent:
+                logger.debug(f'[TaskRunner:create_tasks] Generating dependencies for {task.name}...')
+                # Set dependencies for parent task
+                subdirectories = [sub for sub in Path(task.name).iterdir() if sub.is_dir()]
+                task.dependencies = [subtask for subtask in self.tasks if Path(subtask.name) in subdirectories]
+
+        logger.info(f'[TaskRunner:create_tasks] Created {len(self.tasks)} tasks.')
+        logger.debug(f'[TaskRunner:create_tasks] Task list:\n{[str(task) for task in self.tasks]}')
+
+        return None
 
     def run(self):
         if not Lock.acquire():
@@ -134,72 +188,27 @@ class TaskRunner:
 
         try:
             for task in self.tasks:
-                for dependency in task.dependencies:
-                    if not dependency.completed:
-                        print(f"Waiting for dependency `{dependency.name}` to complete...")
-                        dependency.run()
-
-                self.running_task = task
-                task.run()
-                self.running_task = None
+                if not task.dependencies:
+                    self.running_task = task
+                    task.run()
+                    self.running_task = None
+                else:  # Parent tasks
+                    for dependency in task.dependencies:
+                        if not dependency.completed:
+                            logger.info(f'Running dependent task: {dependency.name}')
+                            dependency.run()
         finally:
             Lock.release()
 
 
-def create_tasks(base_directory: str):
-    """
-    Creates tasks dynamically from the given directory structure using pathlib.
-
-    Args:
-        base_directory (str): The base directory to scan for task creation.
-
-    Returns:
-        list[Task]: A list of dynamically created Task objects.
-    """
-    # To store tasks by directory (for dependency resolution)
-    tasks = {}
-
-    # Convert base_directory to a Path object
-    base_dir = Path(base_directory)
-
-    # Walk through directories
-    # TODO: only bottom directories should be tasks (run_0, run_1, etc)
-    for dir_path in base_dir.rglob("*"):
-        if dir_path.is_dir():
-            task_name = dir_path
-
-            # Define what the task will do (this can be customized as needed)
-            def run_fn(working_dir=dir_path):
-                # Copy config file to cfg_dir
-                # TODO
-                print(f"Processing directory: {working_dir}")
-                for file_path in working_dir.iterdir():
-                    if file_path.is_file():
-                        print(f"Handling file: {file_path}")
-
-            # Identify dependencies (a directory's dependencies could be its parent directory)
-            parent_dir = dir_path.parent
-            dependencies = []
-            if str(parent_dir) in tasks:  # Link to the parent's task
-                dependencies.append(tasks[str(parent_dir)])
-
-            # Create the task and add it to the dictionary
-            tasks[str(dir_path)] = Task(name=task_name, run_fn=run_fn, dependencies=dependencies)
-
-    return list(tasks.values())  # Return all tasks as a list
-
-
-
-def setup_runner(tasks):
-    runner = TaskRunner(tasks)
-    return runner
-
-#     for task in tasks:
-#         runner.add_task(task)
-
-
 
 if __name__ == "__main__":
-    from logger import logger
     config = {'General': {'workload': 'TEST', 'iterations': '3', 'suite_version': 'BMK-1642'}, 'HEPscore': {'site': 'test', 'results_file': 'REPLACE_summary.json', 'gpu': 'true', 'wl_version': 'ci_v0.2', 'plugins': 'f,l,m,s,p,g,u,v', 'others': ''}, 'Scan': {'threads': '4', 'copies': '1,2'}, 'ExtraArgs': {'device': 'cuda', 'n-objects': '1000,5000,10000'}}
-    print(create_tasks('../runs'))
+    run_tasks = TaskRunner(config)
+    run_tasks.run()
+
+
+
+
+
+

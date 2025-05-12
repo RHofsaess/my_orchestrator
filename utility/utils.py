@@ -105,9 +105,7 @@ def run_command(command: list) -> int:
         if "Suite failed." in combined_output:
             logger.error(f'[run_command] Suite failed.')
             return 1
-
-
-        return result.returncode
+        return result.returncode   # always 0; at least I never got another
     except subprocess.CalledProcessError as e:
         # Log detailed information on failure
         logger.error(f'[run_command] Command failed with exit code {e.returncode}.')
@@ -190,4 +188,3 @@ if __name__ == "__main__":
               'ExtraArgs': {'device': 'cuda', 'n-objects': '1000,5000,10000'}}
 
     script, config_dir = verify_installation()
-    print(get_run_command(script, config_dir))

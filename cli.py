@@ -8,7 +8,7 @@ from pathlib import Path
 
 from utility.init_fw import init_run_config
 from utility.logger import logger
-from utility.tasks import Task, TaskRunner, create_tasks
+from utility.tasks import Task, TaskRunner
 from utility.utils import verify_installation, get_run_command, run_command, clone_repo
 
 
@@ -176,11 +176,13 @@ def run(config, task: str = None, ) -> None:
     # If a task is specified to run, create this one task and run it without the task runner
     if task:
         # If a task is specified, create and run it
-        t = Task(config=config, name=task, run_fn=lambda: run_command(get_run_command(config))
-        )
+        t = Task(config=config, name=task, run_fn=lambda: run_command(get_run_command(config)))
         t.run()
     else:
         # No task specified; create tasks for entire 'runs' directory
+
+        # Initialize TaskRunner
+
         # create_tasks('./runs')
         logger.info('[run] Created tasks and start full run.')
         # Start run
