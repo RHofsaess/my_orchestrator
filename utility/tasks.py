@@ -60,6 +60,9 @@ class Task:
         """
         # copy from parent to run_X and cfg_dir
         parent_dir = Path(self.name).resolve().parent
+        if parent_dir.name == 'runs':
+            # runs does not have a config
+            return
         logger.debug(f'[Task:copy_config] Copying config from {parent_dir} to {self.name} and {self.config["HEPscore"]["cfg_dir"]}.')
         src = parent_dir / 'config.yaml'
         dst_run = Path(self.name)/'used_cfg.yaml'
@@ -143,6 +146,16 @@ class Task:
             
             # Execute the task's run function
             return_code = self.run_fn()
+            # If parent, check if subtasks were successful
+            if self.is_parent:
+                # Check if in each subdirectory is a 'SUCCESS' file
+                for subtask in self.dependencies:
+                    if not subtask.completed or subtask.status != 'SUCCESS':
+                        logger.debug(f'[Task:run] Dependency >>{subtask.name}<< not completed.')
+                        return_code = 1
+                        break
+                    return_code = 0
+
             logger.debug(f'[Task:run] Return code of task >>{self.name}<<: {return_code}')
         except Exception as e:
             logger.error(f'Task >>{self.name}<< failed with exception: {e}. Exiting')

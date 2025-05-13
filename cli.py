@@ -149,8 +149,9 @@ def print_status(runner: TaskRunner) -> None:
         if Path('/tmp/task_runner.lock').exists():
             with open('/tmp/task_runner.lock') as f:
                 currently_running = f.read()
-        if task.name in currently_running:
-            print(f'{indent}⚙️  {str(task.name)} (SUCCESS)')
+            if task.name in currently_running:
+                print(f'{indent}⚙️  {str(task.name)} (RUNNING)')
+                return
         elif task.status == 'SUCCESS':
             print(f'{indent}✅  {str(task.name)} (SUCCESS)')
         elif task.status == 'FAILED':
