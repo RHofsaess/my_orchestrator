@@ -120,7 +120,7 @@ class Task:
             else:
                 logger.debug(f'[Task:check_status] Task >>{self.name}<< not completed.')
                 self.completed = False
-        logger.debug(f'[Task:check_status] Full status of >>{self.name}<<: {self.__str__()}')
+        # logger.debug(f'[Task:check_status] Full status of >>{self.name}<<: {self.__str__()}')  # Too spammy
 
 
     def run(self):

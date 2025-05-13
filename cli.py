@@ -211,6 +211,13 @@ def cli():
     parser.add_argument('--rerun', action='store_true', help='Re-run benchmarks')
     parser.add_argument('--interactive', action='store_true', help='Run benchmarks interactively')
     parser.add_argument(
+        '--loglevel',
+        nargs='?',
+        default='INFO',
+        const='INFO',
+        help='Log level: [INFO, WARNING, ERROR, DEBUG]',
+    )
+    parser.add_argument(
         '--task',
         nargs='?',
         default='runs/',
@@ -252,6 +259,8 @@ def cli():
     )
 
     args = parser.parse_args()
+
+    logger.setLevel(args.loglevel)
 
     # Initialize based on config
     cfg = init_run_config(args.config)
