@@ -167,17 +167,18 @@ def push(config):
     pass
 
 
-def run(runner) -> None:
+def run(runner, dry_run) -> int:
     status_code = 1
     logger.info('[run] Starting TaskRunner.')
+    if dry_run:
+        logger.info('[run] Dry-run mode enabled. No actual runs will be performed.')
+        return 0
     try:
         status_code = runner.run()
     except Exception as e:
-        logger.error(f'[run] Error starting TaskRunner: {e}')
+        logger.error(f'[run] Error starting TaskRunner.run(): {e}')
 
     return status_code
-
-
 
 
 def rerun(task: str = '') -> None:
@@ -198,6 +199,7 @@ def cli():
         description='Manage and run hepscore benchmark workflows'
     )
     parser.add_argument('--print-status', action='store_true', help='Print benchmarks status')
+    parser.add_argument('--dry-run', action='store_true', help='Starting without running benchmarks. For debugging purposes only.')
     parser.add_argument('--push', action='store_true', help='Push benchmark results')
     parser.add_argument('--rerun', action='store_true', help='Re-run benchmarks')
     parser.add_argument('--interactive', action='store_true', help='Run benchmarks interactively')

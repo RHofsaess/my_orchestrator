@@ -11,7 +11,9 @@ class Lock:
         """
         Acquire a global lock. Returns True if successful, False if lock exists.
         """
+        logger.debug(f'[lock] Acquiring lock...')
         if os.path.exists(LOCK_FILE):
+            logger.debug(f'[lock] Acquiring lock FAILED.')
             return False
 
         with open(LOCK_FILE, 'w') as lock:
@@ -24,4 +26,5 @@ class Lock:
         Release the global lock by removing the lock file.
         """
         if os.path.exists(LOCK_FILE):
+            logger.debug(f'[lock] Releasing lock...')
             os.remove(LOCK_FILE)
