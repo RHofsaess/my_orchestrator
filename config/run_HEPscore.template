@@ -71,16 +71,25 @@ while getopts ':c:k:iprs:e:wd:b:v:g:' OPTION; do
       echo "Using suite version ${suite_version} instead of latest"
       ;;
     g)
+      # Skip if the value starts with "-<LETTER>"
+      if [[ "$OPTARG" =~ ^-[a-zA-Z]$ ]]; then
+        echo "++WARNING++ No value provided for '-g'. Skipping the flag."
+        # Manually adjust OPTIND to reprocess the next argument as a flag
+        OPTIND=$((OPTIND - 1))
+        n_gpus=0
+        continue
+      fi
+      # Accept if the value starts with "-<NUMBER>"
       n_gpus="$OPTARG"
-      echo "Setting number of GPUs to $n_gpus"
+      echo "Setting number of GPUs to >>$n_gpus<<"
       ;;
     ?)
       echo "
 Usage: $(basename "$0") [OPTIONS]
 
 Options:
-  -c path         Path to the certificate for AMQ authentication 
-  -k path         Path to the private key for AMQ authentication 
+  -c path         Path to the certificate for AMQ authentication
+  -k path         Path to the private key for AMQ authentication
   -i              Install only, do not  run the suite
   -r              Run only, skip installation
   -p              Publish the results to AMQ
@@ -89,19 +98,19 @@ Options:
   -d workdir      Set the working directory to workdir
   -w              Install the suite from prebuilt wheels instead of the repository
   -b plugin_keys  Enable time series monitoring plugins using the following keys:
-                     f - CPU frequency  
-                     l - System load  
-                     m - Memory usage  
-                     s - Memory swap  
-                     p - Power consumption  
-                     g - GPU power consumption  
+                     f - CPU frequency
+                     l - System load
+                     m - Memory usage
+                     s - Memory swap
+                     p - Power consumption
+                     g - GPU power consumption
                      u - GPU usage
                      v - GPU memory (VRAM)
-		               Default enabled: 'f,l,m,s,p'  
-                   Disable all plugins: -b none  
-                   Requires suite version >= 3.0           
+		               Default enabled: 'f,l,m,s,p'
+                   Disable all plugins: -b none
+                   Requires suite version >= 3.0
   -v version      Suite version. Default is latest
-  -g n_gpus       Specify the number of GPUs to use. '0' means disable GPU benchmarks
+  -g n_gpus       Specify the number of GPUs to use. A number MUST be specified. Empty/'0' means disable GPU benchmarks
   "
       exit 1
       ;;
@@ -119,7 +128,7 @@ RUN_ONLY="${run_only:-false}"
 EXECUTOR="${executor:-singularity}"
 INSTALL_FROM_WHEELS="${install_from_wheels:-false}"
 WORKDIR="${workdir:-$(pwd)/workdir}"
-N_GPUS="${n_gpus:-0}"  # N_GPUS defaults to 0 if not specified
+N_GPUS="${n_gpus:-0}"
 #--------------[End of user editable section]-------------------------
 
 # AMQ
@@ -174,6 +183,7 @@ validate_params(){
     validate_site
     validate_publish
     validate_container_executor
+    validate_gpu
 }
 
 validate_site(){
@@ -201,6 +211,27 @@ validate_container_executor(){
     if [ -z "${REGISTRY}" ]; then
         echo "The executor has got to be one of: ${!registries[*]}. Wrong input value: $executor"
         exit 1
+    fi
+}
+
+validate_gpu(){
+    # Check if N_GPUS is a non-negative integer
+    if ! [[ "$N_GPUS" =~ ^[0-9]+$ ]] || [ "$N_GPUS" -lt 0 ]; then
+        echo "[validate_gpu] Invalid number of GPUs specified: -g $N_GPUS. Disabling GPU benchmarking (Setting N_GPUS=0)."
+        N_GPUS=0
+        N_GPUS_MAX=0
+    elif command -v nvidia-smi &> /dev/null && [ "$N_GPUS" -gt 0 ]; then
+        echo "[validate_gpu] 'nvidia-smi' is available."
+        N_GPUS_MAX=$(nvidia-smi -L | wc -l)
+        # If N_GPUS > N_GPUS_MAX -> set
+        if [ "$N_GPUS" -gt "$N_GPUS_MAX" ]; then
+            echo "[validate_gpu] ++WARNING++ More GPUs specified ($N_GPUS) than available. Setting number of GPUs to maximum ($N_GPUS_MAX)."
+            N_GPUS=$N_GPUS_MAX
+        fi
+    else
+        echo "[validate_gpu] No GPU(s) specified ('-g') or no 'nvidia-smi'/GPU available. Running without GPU benchmarking."
+        N_GPUS=0
+        N_GPUS_MAX=0
     fi
 }
 
@@ -242,11 +273,11 @@ global:
 hepscore:
   version: $HEPSCORE_VERSION
   config: builtin://hepscore-run
-  # list of configurations valid only for 
+  # list of configurations valid only for
   # hepscore v2.0 (here as documentation)
-  #config:  builtin://hepscore-default                                                                                                                                                                                                              
-  #config:  builtin://hepscore-ncores                                                                                                                                                                                                               
-  #config:  builtin://hepscore-new-wl   
+  #config:  builtin://hepscore-default
+  #config:  builtin://hepscore-ncores
+  #config:  builtin://hepscore-new-wl
 
   options:
       userns: True
@@ -267,7 +298,7 @@ create_plugin_configuration() {
     ALLOWED_PLUGIN_KEYS=(f l m s p g u v)
 
     # Skip if version is lower than 3.0
-    # Check if the suite version is above a given version    
+    # Check if the suite version is above a given version
     if [[ ! "$SUITE_VERSION" =~ ^[3-9]\.[[:alnum:]]*$ && ! "$SUITE_VERSION" =~ ^qa$ && ! "$SUITE_VERSION" =~ ^latest$ ]]; then
       echo "[create_plugin_configuration] Suite version ${SUITE_VERSION} is not adequate to run plugins. Skipping."
       return 1
@@ -276,8 +307,8 @@ create_plugin_configuration() {
     if [[ "$plugin_keys" == "none" ]]; then
         echo "[create_plugin_configuration] Plugins are disabled"
         return 0
-    fi 
-     
+    fi
+
     if [[ -z $plugin_keys ]]; then
         plugin_keys='f,l,m,s,p'
         echo "[create_plugin_configuration] using default plugin keys ${plugin_keys}"
@@ -328,35 +359,18 @@ create_plugin_configuration() {
       fi
     done
 
-    # Check if GPUs are specified and nvidia-smi are available. If not, disable GPU plugins to avoid possible problems
+    # If GPU plugins are selected, verify GPU availability
     if [ "$collect_gpu_memory" = true ] || [ "$collect_gpu_usage" = true ] || [ "$collect_gpu_power_consumption" = true ];
     then
-        # Check if nvidia-smi is available and number of available GPUs
-        if command -v nvidia-smi &> /dev/null && [ "$N_GPUS" -ne 0 ]; then
-            echo "[create_plugin_configuration] 'nvidia-smi' is available. Running with GPU plugins."
-            N_GPUS_MAX=$(nvidia-smi -L | wc -l)
-        else
-            if [ "$N_GPUS" -eq 0 ]; then
-                echo "[create_plugin_configuration] ++WARNING++ No GPU found or specified. Is -g <number of gpus> specified?"
-            else
-                echo "[create_plugin_configuration] ++WARNING++ No 'nvidia-smi' found."
-            fi
-            echo "[create_plugin_configuration] Disable GPU plugins."
-            N_GPUS_MAX=0
+        if ! [ "$N_GPUS" -gt 0 ]; then
+            echo "[create_plugin_configuration] No GPU(s) available/specified. Running without GPU plugins."
             collect_gpu_power_consumption=false
             collect_gpu_usage=false
             collect_gpu_memory=false
         fi
     fi
 
-    # If N_GPUS > N_GPUS_MAX -> set
-    if [ "$N_GPUS" -gt "$N_GPUS_MAX" ]; then
-        echo "[create_plugin_configuration] ++WARNING++ More GPUs specified ($N_GPUS) than available. Setting number of GPUs to maximum ($N_GPUS_MAX)."
-        N_GPUS=$N_GPUS_MAX
-    fi
-
-
-    # Print the status of each collection flag 
+    # Print the status of each collection flag
     echo "[create_plugin_configuration] collect_cpu_frequency: $collect_cpu_frequency"
     echo "[create_plugin_configuration] collect_load: $collect_load"
     echo "[create_plugin_configuration] collect_memory_usage: $collect_memory_usage"
@@ -462,7 +476,6 @@ plugins:
 
 hepscore_install(){
 
-    validate_params
     create_python_venv
     install_suite
 
@@ -473,7 +486,7 @@ install_suite(){
         SUITE_VERSION=$(curl --silent https://hep-benchmarks.web.cern.ch/hep-benchmark-suite/releases/latest)
         echo "Latest suite release selected: ${SUITE_VERSION}"
     fi
-    
+
     if [[ $INSTALL_FROM_WHEELS == true ]]; then
         install_suite_from_wheels
     else
@@ -505,7 +518,7 @@ install_suite_from_wheels() {
     if ! [[ $SUITE_VERSION =~ ^[0-9v] ]]; then
         wheels_path="dev/"
     fi
-    
+
     if [[ $SUITE_VERSION =~ ^v ]];  then
         wheels_version="hep-benchmark-suite-wheels-${PY_VERSION}-${ARCH}-${SUITE_VERSION}.tar"  # Old format < 3.0
     else
@@ -533,7 +546,7 @@ install_suite_from_wheels() {
     fi
 
     # Download and extract the wheels
-    echo -e "-> Downloading wheel: $wheels_version \n"    
+    echo -e "-> Downloading wheel: $wheels_version \n"
     curl -O "https://hep-benchmarks.web.cern.ch/hep-benchmark-suite/releases/${wheels_path}${SUITE_VERSION}/${wheels_version}"
     tar xvf "${wheels_version}"
 
@@ -559,7 +572,7 @@ create_tarball() {
     if [[ $SUITE_SUCCESSFUL -ne 0 ]] && [[ $RUNDIR_DATE ]] ;
     then
         LOG_TAR="${SITE}_${RUNDIR_DATE}.tar"
-        find "$RUNDIR/$RUNDIR_DATE/" \( -name archive_processes_logs.tgz -o -name hep-benchmark-suite.log -o -name 'HEPscore*.log' \) -exec tar -rf "$LOG_TAR" {} \; &>/dev/null 
+        find "$RUNDIR/$RUNDIR_DATE/" \( -name archive_processes_logs.tgz -o -name hep-benchmark-suite.log -o -name 'HEPscore*.log' \) -exec tar -rf "$LOG_TAR" {} \; &>/dev/null
         echo -e "${ORANGE}\nThe suite has run into errors. If you need help from the administrators, please contact them by email and attach ${WORKDIR}/${LOG_TAR} to it ${NC}"
     fi
 }
@@ -592,7 +605,7 @@ check_workdir_space() {
 
 hepscore_run(){
 
-    if [[ -d "$WORKDIR" && -f "$MYENV/bin/activate" ]]; then 
+    if [[ -d "$WORKDIR" && -f "$MYENV/bin/activate" ]]; then
         # shellcheck source=/dev/null
         source "$MYENV/bin/activate"
     else
@@ -622,6 +635,7 @@ hepscore_run(){
 # Always done so options are taken into account
 create_workdir
 cd "$WORKDIR" || exit 1
+validate_params  # Should be done always, not only on install
 create_config_file
 
 if [[ $INSTALL_ONLY == false && $RUN_ONLY == false ]] ; then
