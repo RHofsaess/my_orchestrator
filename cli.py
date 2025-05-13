@@ -282,6 +282,10 @@ def cli():
     cfg["HEPscore"]["cfg"] = cfg_dir + '/hepscore-run.yaml'
     logger.debug(f'[cli] Config: {cfg._sections}')
 
+    if args.delete:
+        delete(args.delete)
+        exit(0)  # Exit after deletion
+
     # Initialize the TaskRunner
     runner = TaskRunner(cfg, args.task)
 
@@ -289,8 +293,6 @@ def cli():
         print_status(runner)
     elif args.reset:
         reset(args.reset)
-    elif args.delete:
-        delete(args.delete)
     elif args.run:
         logger.info(f'[cli] Starting run...')
         run(runner, dry_run=args.dry_run)
