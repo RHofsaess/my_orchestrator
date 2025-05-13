@@ -205,8 +205,8 @@ def cli():
     parser.add_argument(
         '--task',
         nargs='?',
-        default='runs',
-        const='runs',
+        default='runs/',
+        const='runs/',
         help='Specify a task to run. If no task is specified, all tasks will be run.',
     )
     parser.add_argument(
