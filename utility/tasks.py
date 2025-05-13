@@ -143,6 +143,7 @@ class Task:
             
             # Execute the task's run function
             return_code = self.run_fn()
+            logger.debug(f'[Task:run] Return code of task >>{self.name}<<: {return_code}')
         except Exception as e:
             logger.error(f'Task >>{self.name}<< failed with exception: {e}. Exiting')
             exit(1)  # TODO: Check if necessary!
@@ -222,7 +223,7 @@ class TaskRunner:
                     task = Task(
                         config=self.config,
                         name=str(task_path),
-                        run_fn=lambda: run_command(get_run_command(self.config)),
+                        run_fn=lambda: run_command(get_run_command(self.config), self.tasks_dir),
                     )
                 logger.debug(f'Appending: {task}')
                 self.tasks.append(task)

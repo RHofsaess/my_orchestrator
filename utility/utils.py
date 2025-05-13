@@ -75,7 +75,7 @@ def run_command_direct(_):
 """
 
 
-def run_command(command: list, task_dir) -> int:
+def run_command(command: list, task_dir: str) -> int:
     """Run a given command as a subprocess and return its exit code."""
     logger.debug(f'[run_command] Running command: {" ".join(command)}')
     try:
