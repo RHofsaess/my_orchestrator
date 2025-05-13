@@ -126,7 +126,7 @@ def reset(task) -> None:
             logger.info('[reset] Aborting reset.')
 
 
-def print_status() -> None:
+def print_status(runner: TaskRunner) -> None:
     """
     Prints the status of configurations and their respective runs contained within
     a 'runs/' directory. It checks each run's directory for specific status files
@@ -138,6 +138,30 @@ def print_status() -> None:
     with run information.
 
     :return: None
+    """
+
+    logger.info('[print_status] Printing status of benchmark runs.')
+    logger.debug(f'[print_status] TaskRunner: {runner.tasks}')
+    base_dir = Path('./runs')
+    if not base_dir.exists():
+        logger.error('No runs directory found (expected "runs"/).')
+        return
+
+    def show_status(task: Task, indent: str = '') -> None:
+        if task.status == 'SUCCESS':
+            print(f'{indent}✅ {task.name} (SUCCESS)')
+        elif task.status == 'FAILED':
+            print(f'{indent}❌ {task.name} (FAILED)')
+        else:
+            print(f'{indent}🕒 {task.name} (PENDING)')
+
+    # Check for tasks in ./runs and print parent tasks and the subtasks as their dependencies
+    for task in runner.tasks:
+        if task.is_parent:
+            show_status(task)
+            for subtask in task.dependencies:
+                show_status(subtask, '   |--- ')
+
     """
     logger.info('[print_status] Printing status of benchmark runs.')
     base_dir = Path('./runs')
@@ -164,7 +188,7 @@ def print_status() -> None:
             else:
                 status = '🕒 PENDING'
             print(f"  {run_dir.name}: {status}")
-
+    """
 
 def push(config):
     # TODO: implement push to DB
@@ -266,8 +290,11 @@ def cli():
     cfg["HEPscore"]["cfg"] = cfg_dir + '/hepscore-run.yaml'
     logger.debug(f'[cli] Config: {cfg._sections}')
 
+    # Initialize the TaskRunner
+    runner = TaskRunner(cfg)
+
     if args.print_status:
-        print_status()
+        print_status(runner)
     elif args.reset:
         reset(args.reset)
     elif args.delete:

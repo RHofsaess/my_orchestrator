@@ -1,5 +1,6 @@
 from shutil import copyfile
 from pathlib import Path
+from wsgiref.validate import check_status
 
 from utility.lock import Lock
 from utility.utils import get_run_command, run_command
@@ -76,15 +77,52 @@ class Task:
             logger.error(f'[Task:copy_config] Failed to copy config from {src} to {dst_hepscore}: {e}')
 
     def check_status(self):
-        # If in task directory SUCCESS or FAILED file exists, set status accordingly and completed=true
+        """
+        Check the current status of a task and its dependencies based on the filesystem and set it accordingly in the task object.
+
+        This method evaluates whether the task and its dependencies (if present) have
+        been completed successfully or have failed. It uses file-based markers
+        ("SUCCESS" or "FAILED") available in the task's directory to determine the
+        status of each task. For a parent task, the status of each dependency influences
+        the overall status of the parent task.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        None
+        """
         logger.debug(f'[Task:check_status] Check status of >>{self.name}<<.')
-        if Path(self.name, 'SUCCESS').exists() or Path(self.name, 'FAILED').exists():
-            self.completed = True
+        if self.is_parent:
+            for dependency in self.dependencies:
+                check_status(dependency)
+                if not dependency.completed or dependency.status != 'SUCCESS':
+                    logger.debug(f'[Task:check_status] Dependency >>{dependency.name}<< not completed.')
+                    self.completed = False
+                    break
+                self.completed = True
+        else:
+            if self.completed:  # Avoid double checking
+                pass
             if Path(self.name, 'SUCCESS').exists():
                 self.status = 'SUCCESS'
-            else:
+                self.completed = True
+                logger.debug(f'[Task:check_status] Task >>{self.name}<< completed successfully.')
+            elif Path(self.name, 'FAILED').exists():
                 self.status = 'FAILED'
-        logger.info(f'[Task:check_status] Full status of >>{self.name}<<: {self.__str__()}')
+                self.completed = True
+                logger.debug(f'[Task:check_status] Task >>{self.name}<< failed.')
+            else:
+                logger.debug(f'[Task:check_status] Task >>{self.name}<< not completed.')
+                self.completed = False
+        logger.debug(f'[Task:check_status] Full status of >>{self.name}<<: {self.__str__()}')
+
 
     def run(self):
         """
