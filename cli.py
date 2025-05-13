@@ -1,7 +1,6 @@
 import argparse
 import shutil
 import subprocess
-import os
 
 from shutil import copyfile
 from pathlib import Path
@@ -9,7 +8,7 @@ from pathlib import Path
 from utility.init_fw import init_run_config
 from utility.logger import logger
 from utility.tasks import Task, TaskRunner
-from utility.utils import verify_installation, get_run_command, run_command, clone_repo
+from utility.utils import verify_installation, clone_repo
 
 
 def install(config) -> None:
@@ -276,7 +275,7 @@ def cli():
         delete(args.delete)
     elif args.run:
         logger.info(f'[run] Starting run...')
-        run(runner)
+        run(runner, dry_run=args.dry_run)
 
     else:
         logger.error('Nothing specified. Use --help for more information. Exiting.')
