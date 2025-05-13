@@ -163,7 +163,9 @@ def print_status(runner: TaskRunner) -> None:
                     for subsubtask in subtask.dependencies:
                         show_status(subsubtask, ' |----')
                 else:
-                    pass
+                    show_status(subtask, ' |----')
+        else:
+            show_status(task)
         break
 
 
