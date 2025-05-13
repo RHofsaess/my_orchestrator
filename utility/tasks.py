@@ -243,9 +243,11 @@ class TaskRunner:
 
         return None
 
-    def run(self) -> int:
-        if not Lock.acquire():
-            logger.error(f'[TaskRunner] Another instance is already running. Exiting.')
+    def run(self) -> int:  # TODO check returning
+        if not Lock.acquire(self.tasks_dir):
+            with open('/tmp/task_runner.lock') as f:
+                currently_running = f.read()
+            logger.error(f'[TaskRunner] Another instance ({currently_running}) is already running. Exiting.')
             return 1
 
         try:
