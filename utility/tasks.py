@@ -16,15 +16,15 @@ class Task:
         Initialize a task.
 
         Args:
-            name (str): Name of the task: full path.
+            name (str): Name of the task
             run_fn (callable): Function to execute when the task is run. The function has to return an exit code.
             dependencies (list[Task]): List of other tasks that must be completed before this one.
         """
         # Check if 'name' is a configured task path
-        if Path(name).exists() and str(Path(name)).startswith('runs/'):
+        if Path(name).exists() and str(Path(name)).startswith('runs/') or str(Path(name)) == 'runs':
             self.name = name
         else:
-            raise ValueError(f'The "name" parameter must be a valid task path in "runs/". Received: {name}')
+            raise ValueError(f'The "name" parameter must be a valid task path in "runs". Received: {name}')
 
         if not callable(run_fn):
             raise ValueError('The "run_fn" must be a callable function.')
@@ -195,13 +195,14 @@ class TaskRunner:
             )
             self.tasks.append(task)
         else:  # Parent task
-            logger.debug(f'[TaskRunner:create_tasks] Creating parent tasks')
+            logger.debug(f'[TaskRunner:create_tasks] Creating parent task: {self.tasks_dir}')
             task = Task(
                 config=self.config,
                 name=self.tasks_dir,
                 run_fn=lambda: None,
                 is_parent=True,
             )
+            self.tasks.append(task)
 
         # Walk through directories
         for task_path in Path(self.tasks_dir).rglob("*"):
