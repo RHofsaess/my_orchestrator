@@ -108,7 +108,7 @@ class Task:
                     break
                 self.completed = True
         else:
-            if self.completed:  # Avoid double checking
+            if self.completed:  # Avoid double-checking
                 pass
             if Path(self.name, 'SUCCESS').exists():
                 self.status = 'SUCCESS'
@@ -164,7 +164,10 @@ class Task:
 
 class TaskRunner:
     def __init__(self, config, tasks_directory='./runs'):
-        self.tasks_dir = tasks_directory  # Hardcoded for now
+        if 'runs/' not in tasks_directory:
+            exit('Not a valid task directory. Please specify a task withing "runs/". Exiting.')
+        else:
+            self.tasks_dir = tasks_directory
         self.config = config
         self.tasks = []
         self.running_task = None
@@ -181,13 +184,25 @@ class TaskRunner:
         """
         if not Path(self.tasks_dir).exists():
             raise ValueError(f"Tasks directory {self.tasks_dir} does not exist.")
+        logger.debug(f'[TaskRunner:create_tasks] Creating tasks for: {self.tasks_dir}')
+
+        # Check if single task
+        if not any(Path(self.tasks_dir).rglob("*")) and 'run' in self.tasks_dir:
+            logger.debug(f'[TaskRunner:create_tasks] Creating task: {self.tasks_dir}')
+            task = Task(
+                config=self.config,
+                name=self.tasks_dir,
+                run_fn=lambda: run_command(get_run_command(self.config)),
+            )
+            self.tasks.append(task)
 
         # Walk through directories
         for task_path in Path(self.tasks_dir).rglob("*"):
+            logger.debug(f'[TaskRunner:create_tasks] Checking task: {task_path}')
             # If subdirs exist, create parent task
             if task_path.is_dir():  # Ensure task_path is a directory
                 if any(sub_task.is_dir() for sub_task in task_path.iterdir()):
-                    logger.debug(f'[TaskRunner:create_tasks] Creating parent task for {task_path}')
+                    logger.debug(f'[TaskRunner:create_tasks] Creating parent task: {task_path}')
                     task = Task(
                         config=self.config,
                         name=str(task_path),
@@ -195,7 +210,7 @@ class TaskRunner:
                         is_parent=True,
                     )
                 else:
-                    logger.debug(f'[TaskRunner:create_tasks] Creating task for {task_path}')
+                    logger.debug(f'[TaskRunner:create_tasks] Creating task: {task_path}')
                     task = Task(
                         config=self.config,
                         name=str(task_path),
@@ -207,7 +222,7 @@ class TaskRunner:
         # Set dependencies
         logger.info(f'[TaskRunner:create_tasks] Creating dependencies...')
         for task in self.tasks:
-            print(task.is_parent)
+            logger.debug(f'[TaskRunner:create_tasks] Task is parent: {task.is_parent}')
             if task.is_parent:
                 logger.debug(f'[TaskRunner:create_tasks] Generating dependencies for {task.name}...')
                 # Set dependencies for parent task
@@ -219,10 +234,10 @@ class TaskRunner:
 
         return None
 
-    def run(self):
+    def run(self) -> int:
         if not Lock.acquire():
             logger.error(f'[TaskRunner] Another instance is already running. Exiting.')
-            return
+            return 1
 
         try:
             for task in self.tasks:
@@ -237,6 +252,8 @@ class TaskRunner:
                             dependency.run()
         finally:
             Lock.release()
+
+        return 0
 
 
 

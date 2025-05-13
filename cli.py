@@ -149,9 +149,9 @@ def print_status(runner: TaskRunner) -> None:
 
     def show_status(task: Task, indent: str = '') -> None:
         if task.status == 'SUCCESS':
-            print(f'{indent}✅ {task.name} (SUCCESS)')
+            print(f'{indent}✅  {task.name} (SUCCESS)')
         elif task.status == 'FAILED':
-            print(f'{indent}❌ {task.name} (FAILED)')
+            print(f'{indent}❌  {task.name} (FAILED)')
         else:
             print(f'{indent}🕒 {task.name} (PENDING)')
 
@@ -162,55 +162,22 @@ def print_status(runner: TaskRunner) -> None:
             for subtask in task.dependencies:
                 show_status(subtask, '   |--- ')
 
-    """
-    logger.info('[print_status] Printing status of benchmark runs.')
-    base_dir = Path('./runs')
-    if not base_dir.exists():
-        logger.error('No runs directory found (expected "runs"/).')
-        return
-
-    for combo in sorted(base_dir.iterdir()):
-        if not combo.is_dir():
-            continue
-        print(f"Configuration: {combo.name}")
-        # list iteration subdirs and their status
-        run_dirs = [d for d in sorted(combo.iterdir()) if d.is_dir() and d.name.startswith('run_')]
-        if not run_dirs:
-            print("  (no iterations found)")
-            continue
-        for run_dir in run_dirs:
-            success_file = run_dir / 'SUCCESS'
-            failed_file = run_dir / 'FAILED'
-            if success_file.exists():
-                status = '✅  SUCCESS'
-            elif failed_file.exists():
-                status = '❌ FAILED'
-            else:
-                status = '🕒 PENDING'
-            print(f"  {run_dir.name}: {status}")
-    """
-
 def push(config):
     # TODO: implement push to DB
     pass
 
 
-def run(config, task: str = None, ) -> None:
-    # Check that no run is ongoing # TODO HOW TO CHECK IF RUNNING?
-    # If a task is specified to run, create this one task and run it without the task runner
-    if task:
-        # If a task is specified, create and run it
-        t = Task(config=config, name=task, run_fn=lambda: run_command(get_run_command(config)))
-        t.run()
-    else:
-        # No task specified; create tasks for entire 'runs' directory
+def run(runner) -> None:
+    status_code = 1
+    logger.info('[run] Starting TaskRunner.')
+    try:
+        status_code = runner.run()
+    except Exception as e:
+        logger.error(f'[run] Error starting TaskRunner: {e}')
 
-        # Initialize TaskRunner
+    return status_code
 
-        # create_tasks('./runs')
-        logger.info('[run] Created tasks and start full run.')
-        # Start run
-        # TODO
+
 
 
 def rerun(task: str = '') -> None:
@@ -235,6 +202,13 @@ def cli():
     parser.add_argument('--rerun', action='store_true', help='Re-run benchmarks')
     parser.add_argument('--interactive', action='store_true', help='Run benchmarks interactively')
     parser.add_argument(
+        '--task',
+        nargs='?',
+        default='',
+        const='./runs',
+        help='Specify a task to run. If no task is specified, all tasks will be run.',
+    )
+    parser.add_argument(
         '--config',
         nargs='?',
         default='./config/config.ini',
@@ -250,7 +224,7 @@ def cli():
         '--run',
         nargs='?',  # optional
         default='',
-        const='',  # TODO check if logic works
+        const='1',  # TODO check if logic works
         help='Run benchmarks sequentially. If a task is specified, only that task will be run.',
     )
     parser.add_argument(
@@ -291,8 +265,7 @@ def cli():
     logger.debug(f'[cli] Config: {cfg._sections}')
 
     # Initialize the TaskRunner
-    runner = TaskRunner(cfg)
-
+    runner = TaskRunner(cfg, args.task)
     if args.print_status:
         print_status(runner)
     elif args.reset:
@@ -300,9 +273,9 @@ def cli():
     elif args.delete:
         delete(args.delete)
     elif args.run:
-        run(config=cfg, task=args.run)
-        pass
-        # TODO
+        logger.info(f'[run] Starting run...')
+        run(runner)
+
     else:
         logger.error('Nothing specified. Use --help for more information. Exiting.')
 
