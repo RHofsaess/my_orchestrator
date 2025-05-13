@@ -37,7 +37,7 @@ class Task:
         self.exit_code = None
         self.status = None
         self.completed = False
-        self.check_status()
+        #self.check_status()
 
     def __str__(self):
         return f'Task(name={self.name}, status={self.status}, completed={self.completed}, dependencies={self.dependencies})'
@@ -103,12 +103,23 @@ class Task:
         logger.debug(f'[Task:check_status] Check status of >>{self.name}<<.')
         if self.is_parent:
             for dependency in self.dependencies:
-                check_status(dependency)
-                if not dependency.completed or dependency.status != 'SUCCESS':
+                dependency.check_status()
+                if not dependency.completed:
                     logger.debug(f'[Task:check_status] Dependency >>{dependency.name}<< not completed.')
                     self.completed = False
-                    break
-                self.completed = True
+                    return
+                if dependency.status != 'SUCCESS':
+                    Path(self.name, 'FAILED').touch()
+            self.completed = True  # complete, since it did not return!
+
+            # Set status
+            if Path(self.name, 'FAILED').exists():
+                logger.debug(f'[Task:check_status] Not all dependencies successfully completed for {self.name}.')
+                self.status = 'FAILED'
+            else:
+                logger.debug(f'[Task:check_status] All dependencies successfully completed for {self.name}.')
+                Path(self.name, 'SUCCESS').touch()
+                self.status = 'SUCCESS'
         else:
             if self.completed:  # Avoid double-checking
                 pass
@@ -199,8 +210,18 @@ class TaskRunner:
             raise ValueError(f"Tasks directory {self.tasks_dir} does not exist.")
         logger.debug(f'[TaskRunner:create_tasks] Creating tasks for: {self.tasks_dir}')
 
+        # Create main task
+        logger.debug(f'[TaskRunner:create_tasks] Creating main task: {self.tasks_dir}')
+        task = Task(
+            config=self.config,
+            name='runs/',
+            run_fn=lambda: None,
+            is_parent=True,
+        )
+        self.tasks.append(task)
+
         # Check if single task
-        if not any(Path(self.tasks_dir).rglob("*")) and 'run' in self.tasks_dir:
+        if 'run_' in self.tasks_dir:
             logger.debug(f'[TaskRunner:create_tasks] Creating task: {self.tasks_dir}')
             task = Task(
                 config=self.config,
@@ -220,7 +241,6 @@ class TaskRunner:
 
         # Walk through directories
         for task_path in Path(self.tasks_dir).rglob("*"):
-            logger.debug(f'[TaskRunner:create_tasks] Checking task: {task_path}')
             # If subdirs exist, create parent task
             if task_path.is_dir():  # Ensure task_path is a directory
                 if any(sub_task.is_dir() for sub_task in task_path.iterdir()):
@@ -250,6 +270,9 @@ class TaskRunner:
                 # Set dependencies for parent task
                 subdirectories = [sub for sub in Path(task.name).iterdir() if sub.is_dir()]
                 task.dependencies = [subtask for subtask in self.tasks if Path(subtask.name) in subdirectories]
+        # Update dependencies
+        for task in self.tasks:
+            task.check_status()
 
         logger.info(f'[TaskRunner:create_tasks] Created {len(self.tasks)} tasks.')
         logger.debug(f'[TaskRunner:create_tasks] Task list:\n{[str(task) for task in self.tasks]}')
