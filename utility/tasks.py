@@ -1,6 +1,5 @@
 from shutil import copyfile
 from pathlib import Path
-from wsgiref.validate import check_status
 
 from utility.lock import Lock
 from utility.utils import get_run_command, run_command
@@ -151,7 +150,7 @@ class Task:
         if return_code != 0:
             logger.error(f'[Task:run] Task >>{self.name}<< failed.')
             self.completed = True
-            self.status == 'FAILED'
+            self.status = 'FAILED'
             # Create file in run directory
             Path(self.name, 'FAILED').touch()
         else:
@@ -195,6 +194,14 @@ class TaskRunner:
                 run_fn=lambda: run_command(get_run_command(self.config)),
             )
             self.tasks.append(task)
+        else:  # Parent task
+            logger.debug(f'[TaskRunner:create_tasks] Creating parent tasks')
+            task = Task(
+                config=self.config,
+                name=self.tasks_dir,
+                run_fn=lambda: None,
+                is_parent=True,
+            )
 
         # Walk through directories
         for task_path in Path(self.tasks_dir).rglob("*"):

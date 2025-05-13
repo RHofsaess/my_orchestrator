@@ -141,18 +141,17 @@ def print_status(runner: TaskRunner) -> None:
 
     logger.info('[cli:print_status] Printing status of benchmark runs.')
     logger.debug(f'[cli:print_status] TaskRunner: {runner.tasks}')
-    base_dir = Path('./runs')
-    if not base_dir.exists():
+    if not Path(runner.tasks_dir).exists():
         logger.error('No runs directory found (expected "runs"/).')
         return
 
     def show_status(task: Task, indent: str = '') -> None:
         if task.status == 'SUCCESS':
-            print(f'{indent}✅  {task.name} (SUCCESS)')
+            print(f'{indent}✅  {str(task.name)} (SUCCESS)')
         elif task.status == 'FAILED':
-            print(f'{indent}❌  {task.name} (FAILED)')
+            print(f'{indent}❌  {str(task.name)} (FAILED)')
         else:
-            print(f'{indent}🕒 {task.name} (PENDING)')
+            print(f'{indent}🕒 {str(task.name)} (PENDING)')
 
     # Check for tasks in ./runs and print parent tasks and the subtasks as their dependencies
     for task in runner.tasks:
