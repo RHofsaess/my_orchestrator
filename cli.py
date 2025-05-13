@@ -49,9 +49,9 @@ def install(config) -> None:
         dst = Path('./hep-benchmark-suite/examples/hepscore/run_HEPscore.sh')
         try:
             copyfile(src, dst)
-            logger.info(f'[install] Replaced run_HEPscore.sh with template from {src}.')
+            logger.info(f'[cli:install] Replaced run_HEPscore.sh with template from {src}.')
         except Exception as e:
-            logger.error(f'[install] Failed to copy run_HEPscore.template: {e}')
+            logger.error(f'[cli:install] Failed to copy run_HEPscore.template: {e}')
             raise
 
     # Install hepscore
@@ -60,26 +60,26 @@ def install(config) -> None:
         '-s', config["HEPscore"]["site"],
         '-i'
     ]
-    logger.info(f'[install] Installing hepscore.')
+    logger.info(f'[cli:install] Installing hepscore.')
     try:
         subprocess.run(install_cmd, check=True)
-        logger.info(f'[install] Done.')
+        logger.info(f'[cli:install] Done.')
     except subprocess.CalledProcessError as e:
-        logger.error(f'[install] Error during hepscore installation: {e}')
+        logger.error(f'[cli:install] Error during hepscore installation: {e}')
         exit(e.returncode)
 
 
 def delete(task) -> None:
     """Delete a certain task. Can also be used to start from scratch, if 'runs' is selected."""
     if Path(task).is_dir():
-        logger.warning(f'[delete] ++WARNING++ {task} will be deleted.')
+        logger.warning(f'[cli:delete] ++WARNING++ {task} will be deleted.')
         inp = input('Are you sure you want to proceed? This may will require a new init! [y/N]')
         if inp.lower() == 'y':
-            logger.info(f'[delete] Deleting {task}.')
+            logger.info(f'[cli:delete] Deleting {task}.')
             shutil.rmtree(task)
-            logger.info('[delete] Deleting complete.')
+            logger.info('[cli:delete] Deleting complete.')
     else:
-        logger.error(f'[delete] {task} is not a valid task.')
+        logger.error(f'[cli:delete] {task} is not a valid task.')
 
 
 def reset(task) -> None:
@@ -90,39 +90,39 @@ def reset(task) -> None:
             if item.is_file():
                 # Delete log and status files, keep configs
                 if str(item).split('/')[-1] == 'config.yaml':
-                    logger.info(f'[reset] Preserving file: {item}')
+                    logger.info(f'[cli:reset] Preserving file: {item}')
                 else:
-                    logger.info(f'[reset] Deleting file: {item}')
+                    logger.info(f'[cli:reset] Deleting file: {item}')
                     item.unlink()
             elif item.is_dir():
                 clean_dir(item)
-                logger.info(f'[reset] Task {item} cleaned.')
+                logger.info(f'[cli:reset] Task {item} cleaned.')
 
     if task == 'runs':
-        logger.warning('[reset] ++WARNING++ With this, every progress will be deleted.')
+        logger.warning('[cli:reset] ++WARNING++ With this, every progress will be deleted.')
         inp = input('Are you sure you want to reset all benchmark runs? This will require a new init! [y/N]')
         if inp.lower() == 'y':
-            logger.info('[reset] Benchmark runs will be reset.')
+            logger.info('[cli:reset] Benchmark runs will be reset.')
             # Remove 'runs' directory
             runs_dir = Path('./runs')
-            logger.info(f'[reset] Resetting {runs_dir}.')
+            logger.info(f'[cli:reset] Resetting {runs_dir}.')
             clean_dir(runs_dir)
-            logger.info('[reset] Reset complete.')
+            logger.info('[cli:reset] Reset complete.')
         else:
-            logger.info('[reset] Aborting reset.')
+            logger.info('[cli:reset] Aborting reset.')
     else:
         # Check if task is a directory
         if Path(task).is_dir():
-            logger.warning(f'[reset] ++WARNING++ {task} progress will be deleted.')
+            logger.warning(f'[cli:reset] ++WARNING++ {task} progress will be deleted.')
             inp = input('Are you sure you want to proceed? [y/N]')
             if inp.lower() == 'y':
-                logger.info(f'[reset] Resetting {task}.')
+                logger.info(f'[cli:reset] Resetting {task}.')
                 task_dir = Path(task)
                 # Iterate through the directory and apply the filter
                 clean_dir(task_dir)
         else:
-            logger.error(f'[reset] {task} is not a valid task.')
-            logger.info('[reset] Aborting reset.')
+            logger.error(f'[cli:reset] {task} is not a valid task.')
+            logger.info('[cli:reset] Aborting reset.')
 
 
 def print_status(runner: TaskRunner) -> None:
@@ -139,8 +139,8 @@ def print_status(runner: TaskRunner) -> None:
     :return: None
     """
 
-    logger.info('[print_status] Printing status of benchmark runs.')
-    logger.debug(f'[print_status] TaskRunner: {runner.tasks}')
+    logger.info('[cli:print_status] Printing status of benchmark runs.')
+    logger.debug(f'[cli:print_status] TaskRunner: {runner.tasks}')
     base_dir = Path('./runs')
     if not base_dir.exists():
         logger.error('No runs directory found (expected "runs"/).')
@@ -161,6 +161,7 @@ def print_status(runner: TaskRunner) -> None:
             for subtask in task.dependencies:
                 show_status(subtask, '   |--- ')
 
+
 def push(config):
     # TODO: implement push to DB
     pass
@@ -168,14 +169,14 @@ def push(config):
 
 def run(runner, dry_run) -> int:
     status_code = 1
-    logger.info('[run] Starting TaskRunner.')
+    logger.info('[cli:run] Starting TaskRunner.')
     if dry_run:
-        logger.info('[run] Dry-run mode enabled. No actual runs will be performed.')
+        logger.info('[cli:run] Dry-run mode enabled. No actual runs will be performed.')
         return 0
     try:
         status_code = runner.run()
     except Exception as e:
-        logger.error(f'[run] Error starting TaskRunner.run(): {e}')
+        logger.error(f'[cli:run] Error starting TaskRunner.run(): {e}')
 
     return status_code
 
@@ -205,8 +206,8 @@ def cli():
     parser.add_argument(
         '--task',
         nargs='?',
-        default='',
-        const='./runs',
+        default='runs/',
+        const='runs/',
         help='Specify a task to run. If no task is specified, all tasks will be run.',
     )
     parser.add_argument(
@@ -248,13 +249,13 @@ def cli():
     # Initialize based on config
     cfg = init_run_config(args.config)
     if not cfg:
-        logger.error('Failed to initialize config. Exiting.')
+        logger.error('[cli] Failed to initialize config. Exiting.')
         exit(1)
 
     # Install
     if args.install:
         install(cfg)
-        logger.info('[install] Installed successfully. Exiting...')
+        logger.info('[cli] Installed successfully. Exiting...')
         exit(0)  # Exit after installation
 
     # Verify installation and add directories to cfg
@@ -267,6 +268,7 @@ def cli():
 
     # Initialize the TaskRunner
     runner = TaskRunner(cfg, args.task)
+
     if args.print_status:
         print_status(runner)
     elif args.reset:
@@ -274,11 +276,10 @@ def cli():
     elif args.delete:
         delete(args.delete)
     elif args.run:
-        logger.info(f'[run] Starting run...')
+        logger.info(f'[cli] Starting run...')
         run(runner, dry_run=args.dry_run)
-
     else:
-        logger.error('Nothing specified. Use --help for more information. Exiting.')
+        logger.error('[cli] Nothing specified. Use --help for more information. Exiting.')
 
 
 if __name__ == "__main__":
