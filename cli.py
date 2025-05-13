@@ -158,7 +158,13 @@ def print_status(runner: TaskRunner) -> None:
         if task.is_parent:
             show_status(task)
             for subtask in task.dependencies:
-                show_status(subtask, '   |--- ')
+                if subtask.is_parent:
+                    show_status(subtask, ' |-')
+                    for subsubtask in subtask.dependencies:
+                        show_status(subsubtask, ' |----')
+                else:
+                    pass
+        break
 
 
 def push(config):
