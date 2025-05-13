@@ -91,11 +91,11 @@ def run_command(command: list, task_dir: str) -> int:
 
         # Write logs
         logger.debug(f'[run_command] stdout: {result.stdout}')
-        with open(task_dir / 'stdout', "w") as stdout_file:
+        with open(task_dir + '/stdout', "w") as stdout_file:
             stdout_file.write(result.stdout)
 
         logger.debug(f'[run_command] stderr: {result.stderr}')
-        with open(task_dir / 'stderr', "w") as stderr_file:
+        with open(task_dir + '/stderr', "w") as stderr_file:
             stderr_file.write(result.stderr)
 
         # Since the suite also may return 0 if the benchmarks failed but the suite itself was successfully running,
