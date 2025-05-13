@@ -101,7 +101,7 @@ def run_command(command: list, task_dir: str) -> int:
         # Since the suite also may return 0 if the benchmarks failed but the suite itself was successfully running,
         # this has to be digested manually
         combined_output = result.stdout + result.stderr
-        if "Suite failed." in combined_output:
+        if "Suite failed." in combined_output:  # TODO: NEEDS REVIEW!!!!!!!!!!!!!
             logger.error(f'[run_command] Suite failed.')
             return 1
         return result.returncode   # always 0; at least I never got another
