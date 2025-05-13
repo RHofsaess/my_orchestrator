@@ -66,24 +66,16 @@ def get_run_command(config) -> list:
     ]
 
 
+""" For testing
 def run_command_direct(_):
     subprocess.run('/home/rhcern/REPOS/my_orchestrator/hep-benchmark-suite/examples/hepscore/run_HEPscore.sh -s test -r -b  f,l,m,s,p,g,u,v; ', shell=True)
     subprocess.run('echo $?',shell=True)
     print()
     exit(1)
+"""
 
-def run_command1(command: list) -> int:
-    """Function to run a given command as subprocess. Returns the exit code"""
-    logger.debug(f'[run_command] Running command: {command}')
-    try:
-        result = subprocess.run(command, check=True, capture_output=True)
-        logger.debug(f'[run_command] Command completed with exit code {result.returncode}.')
-        return result.returncode
-    except subprocess.CalledProcessError as e:
-        logger.error(f'[run_command] Command failed with exit code {e.returncode}.')
-        return e.returncode
 
-def run_command(command: list) -> int:
+def run_command(command: list, task_dir) -> int:
     """Run a given command as a subprocess and return its exit code."""
     logger.debug(f'[run_command] Running command: {" ".join(command)}')
     try:
@@ -96,8 +88,15 @@ def run_command(command: list) -> int:
         )
         exit_code = result.returncode
         logger.debug(f'[run_command] Command completed with exit code {exit_code}.')
+
+        # Write logs
         logger.debug(f'[run_command] stdout: {result.stdout}')
+        with open(task_dir / 'stdout', "w") as stdout_file:
+            stdout_file.write(result.stdout)
+
         logger.debug(f'[run_command] stderr: {result.stderr}')
+        with open(task_dir / 'stderr', "w") as stderr_file:
+            stderr_file.write(result.stderr)
 
         # Since the suite also may return 0 if the benchmarks failed but the suite itself was successfully running,
         # this has to be digested manually

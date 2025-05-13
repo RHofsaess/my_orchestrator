@@ -191,7 +191,7 @@ class TaskRunner:
             task = Task(
                 config=self.config,
                 name=self.tasks_dir,
-                run_fn=lambda: run_command(get_run_command(self.config)),
+                run_fn=lambda: run_command(get_run_command(self.config), self.tasks_dir),
             )
             self.tasks.append(task)
         else:  # Parent task
