@@ -3,10 +3,21 @@ This project is a lightweight orchestrator for running HEPscore benchmarks.
 It is wrapping around the hep-benchmark-suite toolset and extends it by the possibility of running multiple benchmarks with different configurations.
 This is particularly useful for development purposes and less for the actual benchmarking later on.
 
+
+### Dependencies
+
+
 ## Concept
 
 
 ## Configuration
+
+## Setup and Dependencies
+For setting up the tool, current requirements are:
+- python > 3.6
+- `PyYAML` (for writing the hepscore configs)
+
+The setup itself has to be executed at first, simply by: `$ python3 main.py --install`.
 
 
 

@@ -75,6 +75,9 @@ def init_run_config(ini_path: str, base_out_dir: str = 'runs') -> dict:
         for key, raw in cfg["Scan"].items():
             vals = _parse_list(raw)
             scan_params[key] = [int(v) if v.isdigit() else v for v in vals]
+    else:
+        logger.error('[init_config_scans] No Scan section found in config.ini. Using defaults instead.')
+        exit(1)
 
     # ExtraArgs parameters
     extra_params = {}
